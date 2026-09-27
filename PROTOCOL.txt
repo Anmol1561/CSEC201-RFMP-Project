@@ -1,0 +1,47 @@
+====================================================
+RFMP PROTOCOL - PACKET FORMATS (v1.0)
+====================================================
+
+All packets are UTF-8 text, fields separated by | (pipe).
+
+1. Start-Packet (client -> server):
+   SS|RFMP|v1.0|<0 or 1>
+   (0 = no encryption, 1 = encryption on)
+
+2. Confirm-Connection-Packet (server -> client):
+   Not secure: CC
+   Secure:     CC|<server_public_key>
+
+3. Encryption-Packet (client -> server, only if secure = 1):
+   EC|<algorithm>|<encrypted_session_key>|<username>:<client_public_key>
+   algorithm = AES or CAESAR
+
+4. Command Packet (client -> server):
+   CM|<command_type>|<arguments>
+   Examples:
+     CM|prompt|ls
+     CM|mkdir|myFolder
+     CM|cd|myFolder
+     CM|rmdir|myFolder
+     CM|del|file.txt
+     CM|ren|old.txt,new.txt
+     CM|openRead|file.txt
+     CM|openWrite|file.txt
+
+5. Data Packet (either direction, after openRead/openWrite):
+   DP|<text or file content, encrypted if secure = 1>
+
+6. Success Packet (server -> client):
+   SC|<message>
+
+7. Exception Packet (server -> client):
+   EE|<error_code>|<description>
+
+8. Close Packet (client -> server):
+   End
+
+----------------------------------------------------
+NOTE: if you need a new field not covered here, ask in
+the WhatsApp group before changing it - don't change the
+format on your own once someone else has started coding
+against it.
