@@ -1,47 +1,51 @@
 ====================================================
 RFMP PROTOCOL - PACKET FORMATS (v1.0)
+Matches the exact notation in the assignment document
 ====================================================
 
-All packets are UTF-8 text, fields separated by | (pipe).
+All packets: parentheses wrapping comma-separated fields.
+Send each packet with a newline (\n) at the end so the other
+side knows where it stops - read byte-by-byte until you hit \n.
 
 1. Start-Packet (client -> server):
-   SS|RFMP|v1.0|<0 or 1>
-   (0 = no encryption, 1 = encryption on)
+   (SS, RFMP, v1.0, 0)     - 0 = no encryption
+   (SS, RFMP, v1.0, 1)     - 1 = encryption on, expect an
+                              Encryption-Packet right after
 
 2. Confirm-Connection-Packet (server -> client):
-   Not secure: CC
-   Secure:     CC|<server_public_key>
+   Not secure: (CC)
+   Secure:     (CC, Server_public_key)
 
 3. Encryption-Packet (client -> server, only if secure = 1):
-   EC|<algorithm>|<encrypted_session_key>|<username>:<client_public_key>
-   algorithm = AES or CAESAR
+   (EC, Algorithm, session_key, username:Client_public_key)
+   Algorithm = AES or Caesar
+   session_key = the AES/Caesar key, encrypted using the server's
+                 RSA public key before sending
 
 4. Command Packet (client -> server):
-   CM|<command_type>|<arguments>
+   (CM, command_type, arguments)
    Examples:
-     CM|prompt|ls
-     CM|mkdir|myFolder
-     CM|cd|myFolder
-     CM|rmdir|myFolder
-     CM|del|file.txt
-     CM|ren|old.txt,new.txt
-     CM|openRead|file.txt
-     CM|openWrite|file.txt
+     (CM, prompt, ls)
+     (CM, prompt, mkdir folder1)
+     (CM, prompt, ren homework1 homework2)
+     (CM, openRead, data.txt)
+     (CM, openWrite, data.txt)
 
 5. Data Packet (either direction, after openRead/openWrite):
-   DP|<text or file content, encrypted if secure = 1>
+   (DP, text)
+   - "text" is the file content, encrypted if secure = 1
 
 6. Success Packet (server -> client):
-   SC|<message>
+   (SC, message)
 
 7. Exception Packet (server -> client):
-   EE|<error_code>|<description>
+   (EE, ErrorCode, Description)
+   - max 4 distinct error codes
 
 8. Close Packet (client -> server):
    End
 
 ----------------------------------------------------
-NOTE: if you need a new field not covered here, ask in
-the WhatsApp group before changing it - don't change the
-format on your own once someone else has started coding
-against it.
+NOTE: this matches the exact notation in the assignment
+document, so don't change the delimiter/brackets - if you
+need a new field, ask in the WhatsApp group first.
