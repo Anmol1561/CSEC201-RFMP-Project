@@ -53,3 +53,39 @@ def parse_packet(packet):
 
     fields = cleaned_fields # Here the overwrite the old list with the clean one
     return fields
+
+# Setting Up the Server
+
+HOST = "localhost"
+PORT = 2040
+
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#AF_INET means we are using IPv4 and SOCK_STREAM means we are using TCP
+
+server_socket.bind((HOST,PORT)) 
+server_socket.listen(1) #listening one connection at a time
+
+connection, address = server_socket.accept()
+print(f"A Client has been connected from {address}")
+
+#Handling the start packet
+
+raw_packet = recieve_packet(connection) # This reads the eaw test
+print("Raw packet has been recieved:", raw_packet)
+
+fields = parse_packet(raw_packet) # we turn the raw packets into a list
+
+#  Pulling out each field from the list and assigning them name 
+packet_type = fields[0]   # should be "SS"
+protocol_name = fields[1]   # should be "RFMP"
+version = fields[2]   # should be "v1.0"
+secure_flag = fields[3]   # "0" = no encryption requested, "1" = encryption requested
+
+print(f"Packet type   : {packet_type}")
+print(f"Protocol  : {protocol_name} ")
+print(f"Version   : {version}")
+print(f"Secure flag   : {secure_flag}")
+
+connection.close()
+server_socket.close()
+print("The connection has been closed")
