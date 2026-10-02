@@ -165,17 +165,17 @@ if secure_flag =="1":
     print("Sending:", ec_packet)
     send_packet(client_socket, ec_packet)
 
-    # Just doing a normal test to do bug fixing 
+# Just doing a normal test to do bug fixing 
+cm_packet = "(CM,openRead,testfile.txt)" # building  a command packet for reading the file
+print("Sending:", cm_packet)
+send_packet(client_socket, cm_packet)
 
-    cm_packet = "(CM,openRead,testfile.txt)" # building  a command packet for reading the file
-    print("Sending:", cm_packet)
-    send_packet(client_socket, cm_packet)
-    
-    dp_raw = recieve_packet(client_socket) #The server will respond with the file content 
-    print("Received Data Packet:", dp_raw)
-    
-    sc_raw = recieve_packet(client_socket) #then a separate success confirmation message will be shown
-    print("Received:", sc_raw)
+dp_raw = recieve_packet(client_socket) #The server will respond with the file content 
+print("Received Data Packet:", dp_raw)
+
+sc_raw = recieve_packet(client_socket) #then a separate success confirmation message will be shown
+print("Received:", sc_raw)
+send_packet(client_socket, "End")
  
 client_socket.close()
 print("Packet sent, connection closed.")
