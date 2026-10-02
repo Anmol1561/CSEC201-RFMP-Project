@@ -201,6 +201,64 @@ print(f"Algorithm chosen: {algorithm}")
 print(f"Decrypted session key: {encryption_key}")
 print(f"Client info: {client_info}")
 
+# handling commands until the client sends "End"
+
+while True:
+    raw_pkt = recieve_packet(connection) # waits for packet from the client
+
+    if not raw_pkt:
+        break # the loop is stopped if the connection breaks unexpectedly
+
+    if raw_pkt.strip() == "End":
+        print("Client is requestion for closing the connection")
+        break
+
+    fields = parse_packet(raw_pkt) # this will break the packets into fields
+    
+    if not fields:
+        send_packet(connection, "(EE,1,Malformed Packet)")
+        continue
+
+    packet_type = fields[0] # indicates the packet type
+
+    if packet_type == "CM":
+        cmd_type = fields[1] #checks which command is it
+
+        if cmd_type == "openRead":
+            file_name = fields[2]
+
+            success, result = execute_open_read(file_name, algorithm, encryption_key) # success means true or false and resultmens if it is a base64 payload or a formatted packet
+
+            if success:
+                send_packet(connection,f"DP, {result}") # sends the file content as its own data packet
+                send_packet(connection,"SC, Read Completed") # Confirms the success
+
+            else:
+                send_packet(connection,result) # result in form of a packet string
+
+        elif cmd_type == "openWrite":
+            file_name = fields[2] # This field tells which file do we have to write into
+            print(f"Server is ready to write into the file: {file_name}, waiting for teh data packet....")
+
+            raw_datapacket = recieve_packet(connection) # waiting for client to send the datapacket
+            datapacket_fields = parse_packet(raw_datapacket)
+
+            payload = datapacket_fields[1]
+            success, result = execute_open_write(file_name, payload, algorithm, encryption_key)
+
+            if success:
+                send_packet(connection, f"(SC, {result})") # success message in a SC packet
+
+            else:
+                send_packet(connection, result) # result in form of a string packet
+
+        else:
+            send_packet(connection, "(EE,102,Command could not be recognized)") # command type is unknown
+
+    else:
+        send_packet(connection,"(EE,103,Unknown Packet type)") # packet_type wasnt CM, DP or End
+
+
 
 connection.close()
 server_socket.close()
