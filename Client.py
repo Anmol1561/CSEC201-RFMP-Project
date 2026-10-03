@@ -1,8 +1,11 @@
 # This is the client side code of our ZRFMP project
 
+import base64
 import math
 import random
 import socket
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
 
 def send_packet(connection, packet_str):
     """
@@ -113,6 +116,55 @@ def rsa_encrypt(message_int, public_key):
     n, e = public_key # unpacks the public key into it two parts n and e
     return pow(message_int, e, n) # This is the RSA math, (message ^ e) modulus n
 
+
+# Symmetric Ciphers
+
+# ==========================================
+# 1. CAESAR CIPHER
+# ==========================================
+
+def caesar_encrypt(text: str, shift: int = 3) -> str:
+    """Encrypts text using a byte-wise Caesar shift and Base64 encodes it."""
+    data = text.encode('utf-8')
+    encrypted_bytes = bytes([(b + shift) % 256 for b in data])
+    return base64.b64encode(encrypted_bytes).decode('utf-8')
+
+def caesar_decrypt(cipher_text_b64: str, shift: int = 3) -> str:
+    """Decrypts Base64 encoded Caesar cipher text back to plain text."""
+    data = base64.b64decode(cipher_text_b64.encode('utf-8'))
+    decrypted_bytes = bytes([(b - shift) % 256 for b in data])
+    return decrypted_bytes.decode('utf-8')
+
+# ==========================================
+# 2. AES CIPHER (CBC Mode)
+# ==========================================
+
+def aes_encrypt(text: str, key: str) -> str:
+    """Encrypts text using AES-128 CBC mode. Returns Base64 string of IV + Ciphertext."""
+    key_bytes = key.encode('utf-8').ljust(16, b'\x00')[:16]
+    data_bytes = text.encode('utf-8')
+    
+    cipher = AES.new(key_bytes, AES.MODE_CBC)
+    padded_data = pad(data_bytes, AES.block_size)
+    ciphertext = cipher.encrypt(padded_data)
+    
+    combined = cipher.iv + ciphertext
+    return base64.b64encode(combined).decode('utf-8')
+
+def aes_decrypt(cipher_text_b64: str, key: str) -> str:
+    """Decrypts Base64 AES-CBC payload back to plain text."""
+    key_bytes = key.encode('utf-8').ljust(16, b'\x00')[:16]
+    combined = base64.b64decode(cipher_text_b64.encode('utf-8'))
+    
+    iv = combined[:16]
+    ciphertext = combined[16:]
+    
+    cipher = AES.new(key_bytes, AES.MODE_CBC, iv=iv)
+    padded_data = cipher.decrypt(ciphertext)
+    return unpad(padded_data, AES.block_size).decode('utf-8')
+
+
+
 #Connecting the client to the server
 
 HOST = "localhost"
@@ -125,7 +177,7 @@ print("Connected to server.")
 packet_type   = "SS"
 protocol_name = "RFMP"
 version       = "v1.0"
-secure_flag   = "0"   
+secure_flag   = "0"   # change this to 1 if you have to test the encrypted path
  
 
 start_packet = f"({packet_type},{protocol_name},{version},{secure_flag})"
@@ -165,7 +217,8 @@ if secure_flag =="1":
     print("Sending:", ec_packet)
     send_packet(client_socket, ec_packet)
 
-# Just doing a normal test to do bug fixing 
+# Doing openRead testthen decrypt/decode the response
+
 cm_packet = "(CM,openRead,testfile.txt)" # building  a command packet for reading the file
 print("Sending:", cm_packet)
 send_packet(client_socket, cm_packet)
@@ -175,6 +228,61 @@ print("Received Data Packet:", dp_raw)
 
 sc_raw = recieve_packet(client_socket) #then a separate success confirmation message will be shown
 print("Received:", sc_raw)
+
+# Pulling the payload out of the DP packet and then decrypt it if a cipher is used or else jsut base-64 decode it
+
+dp_fields = parse_packet(dp_raw) #breaking it into fields
+received_payload = dp_fields[1]
+
+if algorithm == "AES":
+    original_text = aes_decrypt(received_payload, encryption_key)
+
+elif algorithm == "Caesar":
+    shift = int(encryption_key) % 256   # same shift math the server used
+    original_text = caesar_decrypt(received_payload, shift)
+
+else:
+    # unencrypted mode - still base64, just decode it, no cipher involved
+    original_text = base64.b64decode(received_payload.encode("utf-8")).decode("utf-8")
+ 
+print("Actual decoded file content:", original_text)
+
+# Testing openWrite, taking new text encrypting it(or just encode if encryption is off)
+# So server can handle it properly and then sends the actual content over
+
+new_content = "New content from the client!"
+
+if algorithm == "AES":
+    payload_to_send = aes_encrypt(new_content, encryption_key)
+
+elif algorithm == "Caesar":
+    shift = int(encryption_key) % 256
+    payload_to_send = caesar_encrypt(new_content, shift)
+
+else:
+    payload_to_send = base64.b64encode(new_content.encode("utf-8")).decode("utf-8")
+
+write_cmd_packet = "(CM,openWrite,testfile.txt)"
+print("Sending:", write_cmd_packet)
+send_packet(client_socket, write_cmd_packet)
+ 
+data_packet = f"(DP,{payload_to_send})"
+print("Sending:", data_packet)
+send_packet(client_socket, data_packet)
+ 
+write_response = recieve_packet(client_socket)
+print("Received:", write_response)
+
+
+# Prompt Command, listing the content of the server's folder
+
+prompt_packet = "(CM,prompt,ls)"
+print("Sending:", prompt_packet)
+send_packet(client_socket, prompt_packet)
+ 
+prompt_response = recieve_packet(client_socket)
+print("Received:", prompt_response)
+
 send_packet(client_socket, "End")
  
 client_socket.close()
