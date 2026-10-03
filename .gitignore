@@ -220,3 +220,5 @@ __marimo__/
 *.exe
 *.o
 *.obj
+# folder the RFMP server creates for client files
+server_files/
