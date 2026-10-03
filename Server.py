@@ -2,9 +2,13 @@
 # Currenlty we are establising a connection with the client and correctly recieve and read
 # the Start-Packet. We will be developing the Encryption and file commands later, this is the basic code
 
+import base64
 import math
+import os
 import random
 import socket # This is a pyhton module that helps us to build connections
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
 
 def send_packet(connection, packet_str):
     """
@@ -129,6 +133,128 @@ def rsa_decrypt(cipher_int, private_key):
     n, d = private_key # unpacks the private key into its two parts n and d
     return pow(cipher_int, d, n) # This part of RSA method is used to reverse the encryption
 
+
+# Symmetric Ciphers
+
+
+# ==========================================
+# 1. CAESAR CIPHER
+# ==========================================
+
+def caesar_encrypt(text: str, shift: int = 3) -> str:
+    """Encrypts text using a byte-wise Caesar shift and Base64 encodes it."""
+    data = text.encode('utf-8')
+    encrypted_bytes = bytes([(b + shift) % 256 for b in data])
+    return base64.b64encode(encrypted_bytes).decode('utf-8')
+
+def caesar_decrypt(cipher_text_b64: str, shift: int = 3) -> str:
+    """Decrypts Base64 encoded Caesar cipher text back to plain text."""
+    data = base64.b64decode(cipher_text_b64.encode('utf-8'))
+    decrypted_bytes = bytes([(b - shift) % 256 for b in data])
+    return decrypted_bytes.decode('utf-8')
+
+# ==========================================
+# 2. AES CIPHER (CBC Mode)
+# ==========================================
+
+def aes_encrypt(text: str, key: str) -> str:
+    """Encrypts text using AES-128 CBC mode. Returns Base64 string of IV + Ciphertext."""
+    key_bytes = key.encode('utf-8').ljust(16, b'\x00')[:16]
+    data_bytes = text.encode('utf-8')
+    
+    cipher = AES.new(key_bytes, AES.MODE_CBC)
+    padded_data = pad(data_bytes, AES.block_size)
+    ciphertext = cipher.encrypt(padded_data)
+    
+    combined = cipher.iv + ciphertext
+    return base64.b64encode(combined).decode('utf-8')
+
+def aes_decrypt(cipher_text_b64: str, key: str) -> str:
+    """Decrypts Base64 AES-CBC payload back to plain text."""
+    key_bytes = key.encode('utf-8').ljust(16, b'\x00')[:16]
+    combined = base64.b64decode(cipher_text_b64.encode('utf-8'))
+    
+    iv = combined[:16]
+    ciphertext = combined[16:]
+    
+    cipher = AES.new(key_bytes, AES.MODE_CBC, iv=iv)
+    padded_data = cipher.decrypt(ciphertext)
+    return unpad(padded_data, AES.block_size).decode('utf-8')
+
+
+#File Operations
+
+def execute_open_read(filepath: str, algorithm: str = None, session_key: str = None):
+    """
+    Handles 'openRead' command: Reads file content and returns it.
+    Encrypts the text if an encryption algorithm is specified.
+    Returns base64 text so it is safe to drop into a packet
+    Returns (success, payload_or_error):
+
+    success=True  -> payload_or_error is base64 text for a DP packet
+    success=False -> payload_or_error is an already-formatted (EE,...) packet
+    """
+    if not os.path.exists(filepath):
+        return False, "(EE,101,File Not Found)"
+        
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            content = f.read()
+            
+        # Unencrypted mode
+        if not algorithm or algorithm.lower() == "none":
+            payload = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+            return True, payload
+            
+        # Encrypted modes
+        if algorithm.upper() == "AES":
+            payload = aes_encrypt(content, session_key)
+            return True, payload
+        
+        elif algorithm.capitalize() == "Caesar":
+            shift = int(session_key) % 256
+            payload = caesar_encrypt(content, shift)
+            return True, payload
+        
+        else:
+            return False, "(EE,102,Unsupported Encryption Algorithm)"
+            
+    except Exception as e:
+        return False, f"(EE,500,Read Error: {str(e)})"
+
+
+def execute_open_write(filepath: str, payload_text: str, algorithm: str = None, session_key: str = None) :
+    """
+    Handles 'openWrite' command + Data Packet writing:
+    Payload text arrivesas base64 test, which we need to decode
+    Decrypts payload if encryption was enabled, then saves content to file.
+
+    Returns (success, message_or_error)
+    """
+    try:
+        if not algorithm or algorithm.lower() == "none":
+            raw_bytes = base64.b64decode(payload_text.encode("utf-8"))
+            plain_text = raw_bytes.decode("utf-8")
+ 
+        elif algorithm.upper() == "AES":
+            plain_text = aes_decrypt(payload_text, session_key)
+ 
+        elif algorithm.capitalize() == "Caesar":
+            shift = int(session_key) % 256
+            plain_text = caesar_decrypt(payload_text, shift)
+
+        else:
+            return False, "(EE,102,Unsupported Encryption Algorithm)"
+
+        # Write content to remote file
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(plain_text)
+            
+        return True, "(SC,File written successfully)"
+        
+    except Exception as e:
+        return False, f"(EE,501,Write Error: {str(e)})"
+    
 # Setting Up the Server
 
 HOST = "localhost"
@@ -183,23 +309,25 @@ else:
     send_packet(connection,CC_packet) # We send the packet to the client
     print("Sent:", CC_packet)
 
-#Handling the Encrypted Packet
+    decryption_key = server_privatekey
 
-encrypted_packet = recieve_packet(connection) # This recieves the raw client's Encryption packet
-print(" A Raw Encrypted packet has been recieved from the client:", encrypted_packet)
+    #Handling the Encrypted Packet
 
-encrypted_packet_fields = parse_packet(encrypted_packet) # We call out the parse function and break down it into fields
+    encrypted_packet = recieve_packet(connection) # This recieves the raw client's Encryption packet
+    print(" A Raw Encrypted packet has been recieved from the client:", encrypted_packet)
 
-algorithm = encrypted_packet_fields[1] # checks the algoritm
-encrypted_key = int(encrypted_packet_fields[2]) # session key, parsed into an integer
-client_info = encrypted_packet_fields[3]
+    encrypted_packet_fields = parse_packet(encrypted_packet) # We call out the parse function and break down it into fields
 
-encryption_key_int = rsa_decrypt(encrypted_key,decryption_key) # This will decrypt the encryption using our private key
-encryption_key = str(encryption_key_int) # converting it into a string
+    algorithm = encrypted_packet_fields[1] # checks the algoritm
+    encrypted_key = int(encrypted_packet_fields[2]) # session key, parsed into an integer
+    client_info = encrypted_packet_fields[3]
 
-print(f"Algorithm chosen: {algorithm}")
-print(f"Decrypted session key: {encryption_key}")
-print(f"Client info: {client_info}")
+    encryption_key_int = rsa_decrypt(encrypted_key,decryption_key) # This will decrypt the encryption using our private key
+    encryption_key = str(encryption_key_int) # converting it into a string
+
+    print(f"Algorithm chosen: {algorithm}")
+    print(f"Decrypted session key: {encryption_key}")
+    print(f"Client info: {client_info}")
 
 # handling commands until the client sends "End"
 
@@ -230,8 +358,8 @@ while True:
             success, result = execute_open_read(file_name, algorithm, encryption_key) # success means true or false and resultmens if it is a base64 payload or a formatted packet
 
             if success:
-                send_packet(connection,f"DP, {result}") # sends the file content as its own data packet
-                send_packet(connection,"SC, Read Completed") # Confirms the success
+                send_packet(connection,f"(DP, {result})") # sends the file content as its own data packet
+                send_packet(connection,"(SC, Read Completed)") # Confirms the success
 
             else:
                 send_packet(connection,result) # result in form of a packet string
