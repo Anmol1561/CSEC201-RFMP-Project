@@ -1,4 +1,9 @@
-# This is the client side code of our ZRFMP project
+# RFMP (Remote File Management Protocol) - Python client
+# Group members: 
+# Anmol Preet Singh
+# Ahmed Elshennawy
+# Aditya Kadhi
+# Shubhi Attal
 
 import base64
 import math
