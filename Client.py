@@ -177,7 +177,9 @@ print("Connected to server.")
 packet_type   = "SS"
 protocol_name = "RFMP"
 version       = "v1.0"
-secure_flag   = "0"   # change this to 1 if you have to test the encrypted path
+
+secure_choice = input("Connect securely? (y/n): ").strip().lower()
+secure_flag = "1" if secure_choice == "y" else "0"
  
 
 start_packet = f"({packet_type},{protocol_name},{version},{secure_flag})"
@@ -203,7 +205,8 @@ if secure_flag =="1":
     #Generating public and private key for the cleint side
     client_publickey, client_privatekey = generate_rsa_keys()
 
-    algorithm = "Caesar" # algorithm we are telling the server to use
+    algorithm_choice = input("Which algorithm - AES or Caesar? ").strip()
+    algorithm = "AES" if algorithm_choice.upper() == "AES" else "Caesar"
     encryption_key_int = 77
     encryption_key = str(encryption_key_int) # converting the interger to string
 
@@ -217,73 +220,78 @@ if secure_flag =="1":
     print("Sending:", ec_packet)
     send_packet(client_socket, ec_packet)
 
-# Doing openRead testthen decrypt/decode the response
+# ============================================================
+# INTERACTIVE LOOP 
+# ============================================================
 
-cm_packet = "(CM,openRead,testfile.txt)" # building  a command packet for reading the file
-print("Sending:", cm_packet)
-send_packet(client_socket, cm_packet)
+print("\n=== RFMP Client ===")
+print("Commands:")
+print("  read <filename>          - read a file from the server")
+print("  write <filename>         - write new content to a file on the server")
+print("  <anything else>          - sent as a system command, e.g: mkdir test / cd test / ls / whoami")
+print("  quit                     - close the connection\n")
 
-dp_raw = recieve_packet(client_socket) #The server will respond with the file content 
-print("Received Data Packet:", dp_raw)
+while True:
+    user_input = input("> ").strip()
 
-sc_raw = recieve_packet(client_socket) #then a separate success confirmation message will be shown
-print("Received:", sc_raw)
+    if not user_input:
+        continue
 
-# Pulling the payload out of the DP packet and then decrypt it if a cipher is used or else jsut base-64 decode it
+    if user_input.lower() in ("quit", "exit"):
+        break
 
-dp_fields = parse_packet(dp_raw) #breaking it into fields
-received_payload = dp_fields[1]
+    if user_input.startswith("read "):
+        filename = user_input[5:].strip()
+        send_packet(client_socket, f"(CM,openRead,{filename})")
+        response = recieve_packet(client_socket)
 
-if algorithm == "AES":
-    original_text = aes_decrypt(received_payload, encryption_key)
+        if response.strip().startswith("(EE"):
+            print("Server error:", response)
 
-elif algorithm == "Caesar":
-    shift = int(encryption_key) % 256   # same shift math the server used
-    original_text = caesar_decrypt(received_payload, shift)
+        else:
+            confirm = recieve_packet(client_socket)   # the separate (SC,Read Completed) packet
+            dp_fields = parse_packet(response)
+            payload = dp_fields[1]
 
-else:
-    # unencrypted mode - still base64, just decode it, no cipher involved
-    original_text = base64.b64decode(received_payload.encode("utf-8")).decode("utf-8")
- 
-print("Actual decoded file content:", original_text)
+            if algorithm == "AES":
+                text = aes_decrypt(payload, encryption_key)
 
-# Testing openWrite, taking new text encrypting it(or just encode if encryption is off)
-# So server can handle it properly and then sends the actual content over
+            elif algorithm == "Caesar":
+                shift = int(encryption_key) % 256
+                text = caesar_decrypt(payload, shift)
+                
+            else:
+                text = base64.b64decode(payload.encode("utf-8")).decode("utf-8")
 
-new_content = "New content from the client!"
+            print("--- File content ---")
+            print(text)
+            print("--------------------")
 
-if algorithm == "AES":
-    payload_to_send = aes_encrypt(new_content, encryption_key)
+    elif user_input.startswith("write "):
+        filename = user_input[6:].strip()
+        content = input("Enter the content to write: ")
 
-elif algorithm == "Caesar":
-    shift = int(encryption_key) % 256
-    payload_to_send = caesar_encrypt(new_content, shift)
+        if algorithm == "AES":
+            payload = aes_encrypt(content, encryption_key)
+        elif algorithm == "Caesar":
+            shift = int(encryption_key) % 256
+            payload = caesar_encrypt(content, shift)
+        else:
+            payload = base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
-else:
-    payload_to_send = base64.b64encode(new_content.encode("utf-8")).decode("utf-8")
+        send_packet(client_socket, f"(CM,openWrite,{filename})")
+        send_packet(client_socket, f"(DP,{payload})")
+        response = recieve_packet(client_socket)
+        print("Server:", response)
 
-write_cmd_packet = "(CM,openWrite,testfile.txt)"
-print("Sending:", write_cmd_packet)
-send_packet(client_socket, write_cmd_packet)
- 
-data_packet = f"(DP,{payload_to_send})"
-print("Sending:", data_packet)
-send_packet(client_socket, data_packet)
- 
-write_response = recieve_packet(client_socket)
-print("Received:", write_response)
+    else:
+        # anything else gets sent straight through as a system command -
+        # covers mkdir, cd, rmdir, del, ren, and the 5 extra commands
+        send_packet(client_socket, f"(CM,prompt,{user_input})")
+        response = recieve_packet(client_socket)
+        print("Server:", response)
 
-
-# Prompt Command, listing the content of the server's folder
-
-prompt_packet = "(CM,prompt,ls)"
-print("Sending:", prompt_packet)
-send_packet(client_socket, prompt_packet)
- 
-prompt_response = recieve_packet(client_socket)
-print("Received:", prompt_response)
 
 send_packet(client_socket, "End")
- 
 client_socket.close()
-print("Packet sent, connection closed.")
+print("Connection closed.")

@@ -258,10 +258,10 @@ def execute_open_write(filepath: str, payload_text: str, algorithm: str = None, 
         return False, f"(EE,104,Write Error: {str(e)})"
     
 # ==========================================
-# PROMPT COMMANDS + EXCEPTION PACKETS (Shubhi)
+# PROMPT COMMANDS + EXCEPTION PACKETS 
 # ==========================================
 
-# Exception packets (EE) - we use only 4 error codes (the maximum allowed)
+# Exception packets (EE) - we use only 4 error codes 
 #   101 -> File or folder not found
 #   102 -> Invalid command (unknown command, missing argument, unsupported algorithm)
 #   103 -> Invalid packet (malformed packet or unknown packet type)
@@ -426,7 +426,7 @@ HOST = "localhost"
 PORT = 2040
 
 # ==========================================
-# MULTITHREADING (Shubhi)
+# MULTITHREADING 
 # Each client gets its own thread, created using a class that
 # inherits threading.Thread and overrides run()
 # ==========================================
@@ -526,7 +526,7 @@ class ClientThread(threading.Thread):
                 break # the loop is stopped if the connection breaks unexpectedly
 
             if raw_pkt.strip() == "End":
-                print("Client is requestion for closing the connection")
+                print("Client is requesting for closing the connection")
                 break
 
             fields = parse_packet(raw_pkt) # this will break the packets into fields
