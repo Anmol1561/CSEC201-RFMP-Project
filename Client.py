@@ -123,17 +123,17 @@ def rsa_encrypt(message_int, public_key):
 # 1. CAESAR CIPHER
 # ==========================================
 
-def caesar_encrypt(text: str, shift: int = 3) -> str:
+def caesar_encrypt(text: str, shift: int = 3) -> str: 
     """Encrypts text using a byte-wise Caesar shift and Base64 encodes it."""
-    data = text.encode('utf-8')
-    encrypted_bytes = bytes([(b + shift) % 256 for b in data])
-    return base64.b64encode(encrypted_bytes).decode('utf-8')
+    data = text.encode('utf-8') # converts the plain text into raw UTF-8 bytes
+    encrypted_bytes = bytes([(b + shift) % 256 for b in data]) #Applying byte-level Caesar shift modulo 256
+    return base64.b64encode(encrypted_bytes).decode('utf-8') #base64 encoding encrypted bytes and returning the string
 
 def caesar_decrypt(cipher_text_b64: str, shift: int = 3) -> str:
     """Decrypts Base64 encoded Caesar cipher text back to plain text."""
-    data = base64.b64decode(cipher_text_b64.encode('utf-8'))
-    decrypted_bytes = bytes([(b - shift) % 256 for b in data])
-    return decrypted_bytes.decode('utf-8')
+    data = base64.b64decode(cipher_text_b64.encode('utf-8')) # Decode base64 string back to encrypted byte array
+    decrypted_bytes = bytes([(b - shift) % 256 for b in data]) # Reversing byte-level Caesar shift modulo 25
+    return decrypted_bytes.decode('utf-8') # decoded decrypted bytes back to string
 
 # ==========================================
 # 2. AES CIPHER (CBC Mode)
@@ -141,27 +141,27 @@ def caesar_decrypt(cipher_text_b64: str, shift: int = 3) -> str:
 
 def aes_encrypt(text: str, key: str) -> str:
     """Encrypts text using AES-128 CBC mode. Returns Base64 string of IV + Ciphertext."""
-    key_bytes = key.encode('utf-8').ljust(16, b'\x00')[:16]
-    data_bytes = text.encode('utf-8')
+    key_bytes = key.encode('utf-8').ljust(16, b'\x00')[:16] # Formatting symmetric key string into 16-byte byte key
+    data_bytes = text.encode('utf-8') # encoding plain text into UTF-8 bytes
     
-    cipher = AES.new(key_bytes, AES.MODE_CBC)
-    padded_data = pad(data_bytes, AES.block_size)
-    ciphertext = cipher.encrypt(padded_data)
+    cipher = AES.new(key_bytes, AES.MODE_CBC) # Creating new AES cipher object which is configured for CBC mode
+    padded_data = pad(data_bytes, AES.block_size) # Padding the plain text bytes to align with AES 16 bytes block size
+    ciphertext = cipher.encrypt(padded_data) # encrypting the padded bytes with AES cipher
     
-    combined = cipher.iv + ciphertext
-    return base64.b64encode(combined).decode('utf-8')
+    combined = cipher.iv + ciphertext # concatenating header with ciphertext payload bytes
+    return base64.b64encode(combined).decode('utf-8') # base64 encode combined bytes and return string
 
 def aes_decrypt(cipher_text_b64: str, key: str) -> str:
     """Decrypts Base64 AES-CBC payload back to plain text."""
-    key_bytes = key.encode('utf-8').ljust(16, b'\x00')[:16]
-    combined = base64.b64decode(cipher_text_b64.encode('utf-8'))
+    key_bytes = key.encode('utf-8').ljust(16, b'\x00')[:16] # Formatting key string to 16 bytes
+    combined = base64.b64decode(cipher_text_b64.encode('utf-8')) # Base64 decodes the cipher string into raw bytes
     
-    iv = combined[:16]
-    ciphertext = combined[16:]
+    iv = combined[:16] # extracting initial 16 bytes
+    ciphertext = combined[16:] # remaining bytes
     
-    cipher = AES.new(key_bytes, AES.MODE_CBC, iv=iv)
-    padded_data = cipher.decrypt(ciphertext)
-    return unpad(padded_data, AES.block_size).decode('utf-8')
+    cipher = AES.new(key_bytes, AES.MODE_CBC, iv=iv) # inititalising AES cipher object
+    padded_data = cipher.decrypt(ciphertext) # Decrypt ciphertext bytes into padded bytes
+    return unpad(padded_data, AES.block_size).decode('utf-8') # unpading the bytes and decode it to a string
 
 
 
@@ -174,18 +174,18 @@ client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #AF_INET is fo
 client_socket.connect((HOST, PORT))   # this actually opens the connection to the server
 print("Connected to server.")
 
-packet_type   = "SS"
-protocol_name = "RFMP"
-version       = "v1.0"
+packet_type   = "SS" # defines the start packet
+protocol_name = "RFMP" # defines the prototcol name
+version       = "v1.0" # prototcol version string
 
-secure_choice = input("Connect securely? (y/n): ").strip().lower()
+secure_choice = input("Connect securely? (y/n): ").strip().lower() # asks the user for secured or unsecured connection
 secure_flag = "1" if secure_choice == "y" else "0"
  
 
-start_packet = f"({packet_type},{protocol_name},{version},{secure_flag})"
-print("Sending:", start_packet)
+start_packet = f"({packet_type},{protocol_name},{version},{secure_flag})" # constructing the start packet string
+print("Sending:", start_packet) # printing the constructed start packet
  
-send_packet(client_socket, start_packet)
+send_packet(client_socket, start_packet) # sends the start packet over the socket
 
 #Recieving the confirm-connection packet
 
@@ -200,20 +200,20 @@ encryption_key = None
 if secure_flag =="1":
     n_str , e_str = fields_cc[1].split(":") # This will split the first field of confirm connection packet i.e the key into n and e using : as the delimetre
     server_publickey = (int(n_str), int(e_str)) # converts n and e to numbers
-    print(f"Server's public key: {server_publickey}")
+    print(f"Server's public key: {server_publickey}") # Prints the  server's public key
 
     #Generating public and private key for the cleint side
     client_publickey, client_privatekey = generate_rsa_keys()
 
     algorithm_choice = input("Which algorithm - AES or Caesar? ").strip()
     algorithm = "AES" if algorithm_choice.upper() == "AES" else "Caesar"
-    encryption_key_int = 77
+    encryption_key_int = 77 # Session secretkey integer value
     encryption_key = str(encryption_key_int) # converting the interger to string
 
     # Encrypting the session using server's public key so only server can decrypt it using its privaye key
-    encrypted_key = rsa_encrypt(encryption_key_int,server_publickey)
+    encrypted_key = rsa_encrypt(encryption_key_int,server_publickey) 
 
-    username = "anmol"
+    username = "anmol" # setting client username
     cn , ce = client_publickey # unpacking our own public key to include in packet
 
     ec_packet = f"(EC,{algorithm},{encrypted_key},{username}:{cn}:{ce})"
@@ -234,43 +234,44 @@ print("  quit                     - close the connection\n")
 while True:
     user_input = input("> ").strip()
 
-    if not user_input:
+    if not user_input: # if user leaves it blanks and press enter iteration will be skipped
         continue
 
-    if user_input.lower() in ("quit", "exit"):
+    if user_input.lower() in ("quit", "exit"): # terminates the loop if user types quit or exit
         break
 
-    if user_input.startswith("read "):
-        filename = user_input[5:].strip()
-        send_packet(client_socket, f"(CM,openRead,{filename})")
-        response = recieve_packet(client_socket)
+    if user_input.startswith("read "): # used for reading the file name 
+        filename = user_input[5:].strip() # we extract the file name after 5 characters as user will type read <filename>
+        send_packet(client_socket, f"(CM,openRead,{filename})") # sending command packet request to the server
+        response = recieve_packet(client_socket) # recieves teh server response
 
         if response.strip().startswith("(EE"):
-            print("Server error:", response)
+            print("Server error:", response) # displays error  if server returns exception packet
 
         else:
             confirm = recieve_packet(client_socket)   # the separate (SC,Read Completed) packet
-            dp_fields = parse_packet(response)
-            payload = dp_fields[1]
+            dp_fields = parse_packet(response) # breaks the response packet into fields
+            payload = dp_fields[1] # extracts the raw payload from data packet fields list
 
-            if algorithm == "AES":
+            if algorithm == "AES": # executing AED decryption on payload
                 text = aes_decrypt(payload, encryption_key)
 
-            elif algorithm == "Caesar":
+            elif algorithm == "Caesar": # decrypting the Caesar cipher if used
                 shift = int(encryption_key) % 256
                 text = caesar_decrypt(payload, shift)
-                
+
             else:
-                text = base64.b64decode(payload.encode("utf-8")).decode("utf-8")
+                text = base64.b64decode(payload.encode("utf-8")).decode("utf-8") # decoding plain base64 payload
 
             print("--- File content ---")
             print(text)
             print("--------------------")
 
     elif user_input.startswith("write "):
-        filename = user_input[6:].strip()
+        filename = user_input[6:].strip() # extracts the filename from the sixth character because user will enter write <filename>
         content = input("Enter the content to write: ")
 
+        # following the same steps which we did in openRead
         if algorithm == "AES":
             payload = aes_encrypt(content, encryption_key)
         elif algorithm == "Caesar":
@@ -279,10 +280,10 @@ while True:
         else:
             payload = base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
-        send_packet(client_socket, f"(CM,openWrite,{filename})")
-        send_packet(client_socket, f"(DP,{payload})")
-        response = recieve_packet(client_socket)
-        print("Server:", response)
+        send_packet(client_socket, f"(CM,openWrite,{filename})") # sending command packet for openWrite operation
+        send_packet(client_socket, f"(DP,{payload})") # sending the datapacket
+        response = recieve_packet(client_socket) # recieving the server response
+        print("Server:", response) # printing the server response
 
     else:
         # anything else gets sent straight through as a system command -
@@ -292,6 +293,6 @@ while True:
         print("Server:", response)
 
 
-send_packet(client_socket, "End")
-client_socket.close()
+send_packet(client_socket, "End") # sends close session packet to the server
+client_socket.close() # closes the connection
 print("Connection closed.")
