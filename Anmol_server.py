@@ -575,7 +575,7 @@ class ClientThread(threading.Thread):
 
                 elif cmd_type == "openWrite":
                     file_name = fields[2] # This field tells which file do we have to write into
-                    print(f"Server is ready to write into the file: {file_name}, waiting for teh data packet....")
+                    print(f"Server is ready to write into the file: {file_name}, waiting for the data packet....")
 
                     raw_datapacket = recieve_packet(connection) # waiting for client to send the datapacket
                     datapacket_fields = parse_packet(raw_datapacket)
