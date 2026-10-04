@@ -1,6 +1,11 @@
-# This is the server code of our RFMP project
-# Currenlty we are establising a connection with the client and correctly recieve and read
-# the Start-Packet. We will be developing the Encryption and file commands later, this is the basic code
+# RFMP (Remote File Management Protocol) - Python server
+# Group members: 
+# Anmol Preet Singh
+# Ahmed Elshennawy
+# Aditya Kadhi
+# Shubhi Attal
+# Handles the Setup, Operation and Closing phases for many clients at once
+# (one thread per client), with optional RSA + AES/Caesar encryption.
 
 import base64
 import math
@@ -14,7 +19,7 @@ from Crypto.Util.Padding import pad, unpad
 
 def send_packet(connection, packet_str):
     """
-    This send_packet funstion is used to send one packet over the connection
+    This send_packet function is used to send one packet over the connection
     
     connection = it is the socket connecftion object
     packet_str = It is basically the packet in form of a string. For eg "(SS,RFMO,v1.0,0)"
@@ -33,7 +38,7 @@ def recieve_packet(connection):
     This function will read it one byte at a time until the newline character occurs in the send_packet function
     It will return the packet as a string"""
 
-    data = b"" # this is an empty bytes object, we uild the message over here
+    data = b"" # this is an empty bytes object, we build the message over here
 
     while True:
         byte = connection.recv(1) # In this while loop we first just collect one byte of data 
@@ -126,12 +131,12 @@ def generate_rsa_keys():
     return public_key, private_key
  
 def rsa_encrypt(message_int, public_key):
-    # This function encryps the message using the public key
+    # This function encrypts the message using the public key
     n, e = public_key # unpacks the public key into it two parts n and e
     return pow(message_int, e, n) # This is the RSA math, (message ^ e) modulus n
  
 def rsa_decrypt(cipher_int, private_key):
-    # This function decypts the message using the private key
+    # This function decrypts the message using the private key
     n, d = private_key # unpacks the private key into its two parts n and d
     return pow(cipher_int, d, n) # This part of RSA method is used to reverse the encryption
 
@@ -151,7 +156,7 @@ def caesar_encrypt(text: str, shift: int = 3) -> str:
 def caesar_decrypt(cipher_text_b64: str, shift: int = 3) -> str:
     """Decrypts Base64 encoded Caesar cipher text back to plain text."""
     data = base64.b64decode(cipher_text_b64.encode('utf-8')) # Decode base64 string back to encrypted byte array
-    decrypted_bytes = bytes([(b - shift) % 256 for b in data]) # Reversing byte-level Caesar shift modulo 25
+    decrypted_bytes = bytes([(b - shift) % 256 for b in data]) # Reversing byte-level Caesar shift modulo 256
     return decrypted_bytes.decode('utf-8') # decoded decrypted bytes back to string
 
 # ==========================================
@@ -178,9 +183,9 @@ def aes_decrypt(cipher_text_b64: str, key: str) -> str:
     iv = combined[:16] # extracting initial 16 bytes
     ciphertext = combined[16:] # remaining bytes
     
-    cipher = AES.new(key_bytes, AES.MODE_CBC, iv=iv) # inititalising AES cipher object
+    cipher = AES.new(key_bytes, AES.MODE_CBC, iv=iv) # initialising AES cipher object
     padded_data = cipher.decrypt(ciphertext) # Decrypt ciphertext bytes into padded bytes
-    return unpad(padded_data, AES.block_size).decode('utf-8') # unpading the bytes and decode it to a string
+    return unpad(padded_data, AES.block_size).decode('utf-8') # unpadding the bytes and decode it to a string
 
 
 #File Operations
@@ -222,18 +227,21 @@ def execute_open_read(filepath: str, algorithm: str = None, session_key: str = N
             return False, "(EE,102,Unsupported Encryption Algorithm)"
             
     except Exception as e:
-        return False, f"(EE,104,Read Error: {str(e)})"
+        return False, f"(EE,104,Could not read file)"
 
 
 def execute_open_write(filepath: str, payload_text: str, algorithm: str = None, session_key: str = None) :
     """
     Handles 'openWrite' command + Data Packet writing:
-    Payload text arrivesas base64 test, which we need to decode
+    Payload text arrives as base64 test, which we need to decode
     Decrypts payload if encryption was enabled, then saves content to file.
 
     Returns (success, message_or_error)
     """
     try:
+        if not os.path.isdir(os.path.dirname(filepath)): # the folder we are writing into must exist
+            return False, "(EE,101,Folder Not Found)"
+        
         if not algorithm or algorithm.lower() == "none":
             raw_bytes = base64.b64decode(payload_text.encode("utf-8"))
             plain_text = raw_bytes.decode("utf-8")
@@ -255,7 +263,7 @@ def execute_open_write(filepath: str, payload_text: str, algorithm: str = None, 
         return True, "(SC,File written successfully)"
         
     except Exception as e:
-        return False, f"(EE,104,Write Error: {str(e)})"
+        return False, f"(EE,104,Could not write file)"
     
 # ==========================================
 # PROMPT COMMANDS + EXCEPTION PACKETS 
@@ -378,7 +386,7 @@ else: # macOS / Linux
         "uptime":   ["uptime"],    # how long the server has been on + CPU load
     }
 
-def do_extra(cwd, name): # helper function to safely run subprocess extra commmands
+def do_extra(cwd, name): # helper function to safely run subprocess extra commands
     try:
         # cwd=cwd runs the command inside this client's current folder
         result = subprocess.run(EXTRA_COMMANDS[name], cwd=cwd, capture_output=True,
@@ -459,7 +467,7 @@ class ClientThread(threading.Thread):
 
         #Handling the start packet
 
-        raw_packet = recieve_packet(connection) # This reads the eaw test
+        raw_packet = recieve_packet(connection) # This reads the raw text
         print("Raw packet has been recieved:", raw_packet)
 
         fields = parse_packet(raw_packet) # we turn the raw packets into a list
@@ -492,7 +500,7 @@ class ClientThread(threading.Thread):
 
             n,e = server_publickey #unpacking the numbers from the public key
 
-            CC_packet = f"(CC,{n}:{e})" # This is the text that will be present in the packer
+            CC_packet = f"(CC,{n}:{e})" # This is the text that will be present in the packet
 
             send_packet(connection,CC_packet) # We send the packet to the client
             print("Sent:", CC_packet)

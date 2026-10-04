@@ -1,4 +1,12 @@
-// unencrypted client. It just needs to connect,
+// RFMP - C client (unencrypted, openRead only)
+// Group members: 
+// Anmol Preet Singh
+// Ahmed Elshennawy
+// Aditya Kadhi
+// Shubhi Attal
+//
+// This client connects,
+
 // do the Start-Packet handshake, ask the user for a file, read it back,
 // then send the End packet and close.
 
@@ -140,7 +148,7 @@ int main(void) {
     // Now read the server's reply - should just be (CC) since security is off.
     // Using recvPacket so this works even if the reply arrives in more
     // than one chunk - it keeps reading until it sees the '\n'.
-    char buf[1024];
+    char buf[65536];
     int result = recvPacket(sock, buf, sizeof(buf));
     if (result == 1) {
         printf("Server replied: %s\n", buf);
@@ -168,7 +176,7 @@ int main(void) {
         } else {
             char *fileText = parseDataPacket(buf);
 
-            unsigned char decoded[2048];
+            unsigned char decoded[65536];
             int decodedLen = base64Decode(fileText, decoded, sizeof(decoded) - 1);
 
             if (decodedLen >= 0) {
