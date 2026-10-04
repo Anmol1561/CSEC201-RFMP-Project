@@ -53,6 +53,38 @@ char *parseDataPacket(char *packet) {
     return start;
 }
 
+// Decodes a base64 string into out. Returns the number of bytes written,
+// or -1 if out isn't big enough. The server always base64-encodes file
+// content (even unencrypted) to keep commas/newlines from breaking the
+// packet format, so this has to run on whatever we read back before
+// it's actually readable.
+int base64Decode(const char *in, unsigned char *out, int outSize) {
+    static const char *alphabet =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    int table[256];
+    for (int i = 0; i < 256; i++) table[i] = -1;
+    for (int i = 0; i < 64; i++) table[(unsigned char)alphabet[i]] = i;
+ 
+    int len = (int)strlen(in);
+    int outLen = 0;
+    int val = 0, bits = -8;
+ 
+    for (int i = 0; i < len; i++) {
+        char c = in[i];
+        if (c == '=') break;                            // padding marks the end of real data
+        if (table[(unsigned char)c] == -1) continue;      // skip anything unexpected
+ 
+        val = (val << 6) + table[(unsigned char)c];
+        bits += 6;
+        if (bits >= 0) {
+            if (outLen >= outSize) return -1;              // output buffer too small
+            out[outLen++] = (unsigned char)((val >> bits) & 0xFF);
+            bits -= 8;
+        }
+    }
+    return outLen;
+}
+
 int main(void) {
 
     // Windows needs Winsock turned on before we can use any socket
@@ -131,11 +163,20 @@ int main(void) {
     // for the server to hang up like before.
     result = recvPacket(sock, buf, sizeof(buf));
     if (result == 1) {
-        if (strncmp(buf, "(EE", 3) == 0) {
+                if (strncmp(buf, "(EE", 3) == 0) {
             printf("\nServer reported an error: %s\n", buf);
         } else {
             char *fileText = parseDataPacket(buf);
-            printf("\n--- File contents ---\n%s\n--- End of file ---\n", fileText);
+
+            unsigned char decoded[2048];
+            int decodedLen = base64Decode(fileText, decoded, sizeof(decoded) - 1);
+
+            if (decodedLen >= 0) {
+                decoded[decodedLen] = '\0';
+                printf("\n--- File contents ---\n%s\n--- End of file ---\n", decoded);
+            } else {
+                printf("\n--- File contents (could not decode) ---\n%s\n--- End of file ---\n", fileText);
+            }
         }
     } else if (result == 0) {
         printf("Server closed the connection before replying.\n");

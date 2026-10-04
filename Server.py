@@ -69,14 +69,14 @@ def egcd(a, b):
     # It finds gcd(a, b)  and the two coefficients needed to build a modular inverse in modinv() below.
     if b == 0:
         return a, 1, 0  
-    g, x1, y1 = egcd(b, a % b) 
+    g, x1, y1 = egcd(b, a % b) # recursively calling egcd
     return g, y1, x1 - (a // b) * y1  
  
 def modinv(a, m): # This finds the modular inverse
     # Finds x such that (a * x) % m == 1.
     # This turns the public exponent e into the private exponent d.
     g, x, _ = egcd(a, m)
-    if g != 1:
+    if g != 1: #gcd must be equal to 1
         return None
     return x % m                
  
@@ -138,22 +138,21 @@ def rsa_decrypt(cipher_int, private_key):
 
 # Symmetric Ciphers
 
-
 # ==========================================
 # 1. CAESAR CIPHER
 # ==========================================
 
-def caesar_encrypt(text: str, shift: int = 3) -> str:
+def caesar_encrypt(text: str, shift: int = 3) -> str: 
     """Encrypts text using a byte-wise Caesar shift and Base64 encodes it."""
-    data = text.encode('utf-8')
-    encrypted_bytes = bytes([(b + shift) % 256 for b in data])
-    return base64.b64encode(encrypted_bytes).decode('utf-8')
+    data = text.encode('utf-8') # converts the plain text into raw UTF-8 bytes
+    encrypted_bytes = bytes([(b + shift) % 256 for b in data]) #Applying byte-level Caesar shift modulo 256
+    return base64.b64encode(encrypted_bytes).decode('utf-8') #base64 encoding encrypted bytes and returning the string
 
 def caesar_decrypt(cipher_text_b64: str, shift: int = 3) -> str:
     """Decrypts Base64 encoded Caesar cipher text back to plain text."""
-    data = base64.b64decode(cipher_text_b64.encode('utf-8'))
-    decrypted_bytes = bytes([(b - shift) % 256 for b in data])
-    return decrypted_bytes.decode('utf-8')
+    data = base64.b64decode(cipher_text_b64.encode('utf-8')) # Decode base64 string back to encrypted byte array
+    decrypted_bytes = bytes([(b - shift) % 256 for b in data]) # Reversing byte-level Caesar shift modulo 25
+    return decrypted_bytes.decode('utf-8') # decoded decrypted bytes back to string
 
 # ==========================================
 # 2. AES CIPHER (CBC Mode)
@@ -161,27 +160,27 @@ def caesar_decrypt(cipher_text_b64: str, shift: int = 3) -> str:
 
 def aes_encrypt(text: str, key: str) -> str:
     """Encrypts text using AES-128 CBC mode. Returns Base64 string of IV + Ciphertext."""
-    key_bytes = key.encode('utf-8').ljust(16, b'\x00')[:16]
-    data_bytes = text.encode('utf-8')
+    key_bytes = key.encode('utf-8').ljust(16, b'\x00')[:16] # Formatting symmetric key string into 16-byte byte key
+    data_bytes = text.encode('utf-8') # encoding plain text into UTF-8 bytes
     
-    cipher = AES.new(key_bytes, AES.MODE_CBC)
-    padded_data = pad(data_bytes, AES.block_size)
-    ciphertext = cipher.encrypt(padded_data)
+    cipher = AES.new(key_bytes, AES.MODE_CBC) # Creating new AES cipher object which is configured for CBC mode
+    padded_data = pad(data_bytes, AES.block_size) # Padding the plain text bytes to align with AES 16 bytes block size
+    ciphertext = cipher.encrypt(padded_data) # encrypting the padded bytes with AES cipher
     
-    combined = cipher.iv + ciphertext
-    return base64.b64encode(combined).decode('utf-8')
+    combined = cipher.iv + ciphertext # concatenating header with ciphertext payload bytes
+    return base64.b64encode(combined).decode('utf-8') # base64 encode combined bytes and return string
 
 def aes_decrypt(cipher_text_b64: str, key: str) -> str:
     """Decrypts Base64 AES-CBC payload back to plain text."""
-    key_bytes = key.encode('utf-8').ljust(16, b'\x00')[:16]
-    combined = base64.b64decode(cipher_text_b64.encode('utf-8'))
+    key_bytes = key.encode('utf-8').ljust(16, b'\x00')[:16] # Formatting key string to 16 bytes
+    combined = base64.b64decode(cipher_text_b64.encode('utf-8')) # Base64 decodes the cipher string into raw bytes
     
-    iv = combined[:16]
-    ciphertext = combined[16:]
+    iv = combined[:16] # extracting initial 16 bytes
+    ciphertext = combined[16:] # remaining bytes
     
-    cipher = AES.new(key_bytes, AES.MODE_CBC, iv=iv)
-    padded_data = cipher.decrypt(ciphertext)
-    return unpad(padded_data, AES.block_size).decode('utf-8')
+    cipher = AES.new(key_bytes, AES.MODE_CBC, iv=iv) # inititalising AES cipher object
+    padded_data = cipher.decrypt(ciphertext) # Decrypt ciphertext bytes into padded bytes
+    return unpad(padded_data, AES.block_size).decode('utf-8') # unpading the bytes and decode it to a string
 
 
 #File Operations
@@ -196,11 +195,12 @@ def execute_open_read(filepath: str, algorithm: str = None, session_key: str = N
     success=True  -> payload_or_error is base64 text for a DP packet
     success=False -> payload_or_error is an already-formatted (EE,...) packet
     """
-    if not os.path.exists(filepath):
+
+    if not os.path.exists(filepath): # checks if the file exists
         return False, "(EE,101,File Not Found)"
         
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, "r", encoding="utf-8") as f: # opens and reads the file
             content = f.read()
             
         # Unencrypted mode
@@ -249,7 +249,7 @@ def execute_open_write(filepath: str, payload_text: str, algorithm: str = None, 
             return False, "(EE,102,Unsupported Encryption Algorithm)"
 
         # Write content to remote file
-        with open(filepath, "w", encoding="utf-8") as f:
+        with open(filepath, "w", encoding="utf-8") as f: # opens and writes in the file
             f.write(plain_text)
             
         return True, "(SC,File written successfully)"
@@ -298,7 +298,7 @@ def show_path(path):
 
 # ----- required commands -----
 
-def do_mkdir(cwd, args):
+def do_mkdir(cwd, args): # function to execute mkdir command
     if len(args) < 1:
         return ee_packet(102, "Usage: mkdir <folder>")
     path = get_path(cwd, args[0])
@@ -309,7 +309,7 @@ def do_mkdir(cwd, args):
     os.mkdir(path)
     return sc_packet(f"Folder {args[0]} created")
 
-def do_rmdir(cwd, args):
+def do_rmdir(cwd, args): # function to execute rmdir command
     if len(args) < 1:
         return ee_packet(102, "Usage: rmdir <folder>")
     path = get_path(cwd, args[0])
@@ -322,7 +322,7 @@ def do_rmdir(cwd, args):
     os.rmdir(path)
     return sc_packet(f"Folder {args[0]} deleted")
 
-def do_del(cwd, args):
+def do_del(cwd, args): # function to execute delete file command
     if len(args) < 1:
         return ee_packet(102, "Usage: del <file>")
     path = get_path(cwd, args[0])
@@ -333,7 +333,7 @@ def do_del(cwd, args):
     os.remove(path)
     return sc_packet(f"File {args[0]} deleted")
 
-def do_ren(cwd, args):
+def do_ren(cwd, args): # function to execute the rename command
     if len(args) < 2:
         return ee_packet(102, "Usage: ren <old name> <new name>")
     old = get_path(cwd, args[0])
@@ -378,7 +378,7 @@ else: # macOS / Linux
         "uptime":   ["uptime"],    # how long the server has been on + CPU load
     }
 
-def do_extra(cwd, name):
+def do_extra(cwd, name): # helper function to safely run subprocess extra commmands
     try:
         # cwd=cwd runs the command inside this client's current folder
         result = subprocess.run(EXTRA_COMMANDS[name], cwd=cwd, capture_output=True,
@@ -394,13 +394,13 @@ def run_prompt(cwd, command_text):
     Runs one prompt command, e.g. "mkdir folder1" from (CM, prompt, mkdir folder1)
     Returns (reply packet, current folder) because cd can change the folder
     """
-    parts = command_text.split()
+    parts = command_text.split() # splits the command string into a list
     if len(parts) == 0:
         return ee_packet(102, "Empty command"), cwd
-    command = parts[0].lower()
-    args = parts[1:]
+    command = parts[0].lower() # extracting command keyword
+    args = parts[1:] # extracting remaining command arguments
 
-    try:
+    try: # dispatching the commands to handler function
         if command == "cd":
             return do_cd(cwd, args)
         elif command == "mkdir":
@@ -414,11 +414,11 @@ def run_prompt(cwd, command_text):
         elif command in EXTRA_COMMANDS:
             return do_extra(cwd, command), cwd
         else:
-            return ee_packet(102, f"Unknown command {command}"), cwd
-    except PermissionError:
+            return ee_packet(102, f"Unknown command {command}"), cwd # unrecognized command
+    except PermissionError: # catches file system permission error
         return ee_packet(104, "Permission denied"), cwd
     except Exception as e:
-        return ee_packet(104, str(e).replace(",", ";")), cwd
+        return ee_packet(104, str(e).replace(",", ";")), cwd # returns error 104 with error description
 
 # Setting Up the Server
 
@@ -438,13 +438,13 @@ class ClientThread(threading.Thread):
         self.connection = connection
         self.address = address
         # each client has its OWN current folder (os.chdir would change it for every thread)
-        self.cwd = ROOT
+        self.cwd = ROOT # client's working directory will be server's root folder
 
     def run(self):
         # start() runs this method in the new thread
         print(f"[{self.name}] A Client has been connected from {self.address}")
         try:
-            self.handle_client(self.connection)
+            self.handle_client(self.connection) # run client request handler
         except (ConnectionResetError, BrokenPipeError):
             print(f"[{self.name}] The client dropped the connection")
         except Exception as e:
@@ -513,9 +513,9 @@ class ClientThread(threading.Thread):
             encryption_key_int = rsa_decrypt(encrypted_key,decryption_key) # This will decrypt the encryption using our private key
             encryption_key = str(encryption_key_int) # converting it into a string
 
-            print(f"Algorithm chosen: {algorithm}")
-            print(f"Decrypted session key: {encryption_key}")
-            print(f"Client info: {client_info}")
+            print(f"Algorithm chosen: {algorithm}") # logs the chosen algorithm
+            print(f"Decrypted session key: {encryption_key}") # logs the decrypted key
+            print(f"Client info: {client_info}") # logs the client info
 
         # handling commands until the client sends "End"
 
